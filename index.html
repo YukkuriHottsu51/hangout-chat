@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hangout — Web Chat</title>
+  <style>
+    :root {
+      --bg: #313338; --panel: #2b2d31; --darker: #1e1f22; --hover: #35373c;
+      --text: #f2f3f5; --muted: #949ba4; --accent: #5865f2; --line: #3f4147;
+      --green: #23a559; --danger: #da373c;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .hidden { display: none !important; }
+    #auth { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .auth-card { width: min(420px, 100%); padding: 30px; border-radius: 12px; background: var(--panel); box-shadow: 0 12px 40px #0005; }
+    h1 { margin: 0 0 8px; font-size: 25px; } .sub { color: var(--muted); margin: 0 0 24px; }
+    .field { display: grid; gap: 7px; margin: 15px 0; color: #c9ccd1; font-size: 13px; font-weight: 700; }
+    input { width: 100%; border: 1px solid var(--darker); border-radius: 6px; background: var(--darker); color: var(--text); padding: 12px; outline: none; }
+    input:focus { border-color: var(--accent); }
+    .primary { width: 100%; border: 0; border-radius: 6px; background: var(--accent); color: white; padding: 12px 16px; font-weight: 700; }
+    .primary:hover { filter: brightness(1.1); }
+    .link-btn { border: 0; padding: 10px 0 0; background: none; color: #00a8fc; }
+    #auth-error { color: #ff777b; min-height: 20px; font-size: 13px; }
+    #app { height: 100vh; min-height: 480px; display: grid; grid-template-columns: 68px 230px minmax(0, 1fr); overflow: hidden; }
+    .servers { background: var(--darker); padding: 12px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .server-icon { width: 46px; height: 46px; border: 0; border-radius: 16px; color: white; background: var(--accent); font-weight: 800; font-size: 18px; }
+    .server-icon.active { border-radius: 14px; }
+    .server-label { font-size: 10px; color: var(--muted); text-align: center; }
+    .channels { background: var(--panel); display: flex; flex-direction: column; min-width: 0; }
+    .server-head { height: 52px; padding: 0 16px; display: flex; align-items: center; border-bottom: 1px solid var(--darker); font-weight: 750; box-shadow: 0 1px 3px #0002; }
+    .channel-title { padding: 22px 12px 7px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+    .channel { margin: 2px 8px; padding: 8px 10px; border: 0; border-radius: 5px; background: transparent; color: #b5bac1; text-align: left; }
+    .channel:hover { background: var(--hover); color: var(--text); }
+    .channel.active { background: #404249; color: white; }
+    .hash { color: var(--muted); margin-right: 8px; font-weight: 600; }
+    .profile { margin-top: auto; padding: 12px; background: #232428; display: flex; align-items: center; gap: 9px; min-width: 0; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #5865f2; color: white; font-weight: 800; flex: 0 0 auto; }
+    .profile-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
+    .profile-status { color: var(--muted); font-size: 11px; }
+    .logout { margin-left: auto; border: 0; background: transparent; color: var(--muted); padding: 6px; }
+    .chat { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+    .chat-head { height: 52px; border-bottom: 1px solid var(--darker); display: flex; align-items: center; padding: 0 20px; gap: 9px; font-weight: 750; }
+    .topic { margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 400; }
+    #messages { flex: 1; overflow-y: auto; padding: 20px clamp(14px, 4vw, 42px); }
+    .welcome { margin: 10px 0 24px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+    .welcome h2 { font-size: 25px; margin: 0 0 5px; }
+    .welcome p { margin: 0; color: var(--muted); }
+    .message { display: flex; gap: 13px; margin: 18px 0; }
+    .message .avatar { width: 40px; height: 40px; }
+    .message-main { min-width: 0; }
+    .message-meta { display: flex; align-items: baseline; gap: 8px; }
+    .message-author { font-weight: 700; }
+    .message-time { color: var(--muted); font-size: 11px; }
+    .message-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 3px; color: #dbdee1; }
+    .composer-wrap { padding: 0 clamp(14px, 4vw, 42px) 24px; }
+    .composer { display: flex; gap: 10px; padding: 10px; background: #383a40; border-radius: 8px; align-items: end; }
+    .composer input { background: transparent; border: 0; padding: 5px; flex: 1; }
+    .composer input:focus { border: 0; }
+    .send { border: 0; border-radius: 5px; background: var(--accent); color: white; padding: 8px 14px; font-weight: 700; }
+    .send:disabled { opacity: .45; cursor: default; }
+    .notice { color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
+    @media (max-width: 680px) {
+      #app { grid-template-columns: 54px 155px minmax(0,1fr); }
+      .servers { padding: 10px 5px; } .server-icon { width: 40px; height: 40px; }
+      .server-head { padding: 0 10px; font-size: 13px; }
+      .topic { display: none; } #messages { padding: 14px 10px; }
+      .composer-wrap { padding: 0 10px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <section id="auth">
+    <div class="auth-card">
+      <h1>Hangout</h1>
+      <p class="sub">友達と話すための、小さなWebチャット。</p>
+      <form id="auth-form">
+        <label class="field">メールアドレス<input id="email" type="email" autocomplete="username" required></label>
+        <label class="field">パスワード<input id="password" type="password" autocomplete="current-password" minlength="6" required></label>
+        <label class="field" id="name-field">表示名（新規登録時）<input id="display-name" maxlength="24" placeholder="例：A"></label>
+        <button class="primary" id="auth-submit" type="submit">ログイン</button>
+      </form>
+      <button class="link-btn" id="toggle-auth" type="button">アカウントを新規作成する</button>
+      <p id="auth-error" role="status"></p>
+      <p class="notice">このチャットは招待されたメンバー向けです。</p>
+    </div>
+  </section>
+
+  <main id="app" class="hidden">
+    <aside class="servers">
+      <button class="server-icon active" title="Hangout">H</button>
+      <div class="server-label">Hangout</div>
+    </aside>
+    <aside class="channels">
+      <div class="server-head">Hangout <span style="margin-left:auto;color:#949ba4">⌄</span></div>
+      <div class="channel-title">テキストチャンネル</div>
+      <button class="channel active" data-channel="general"><span class="hash">#</span>general</button>
+      <button class="channel" data-channel="雑談"><span class="hash">#</span>雑談</button>
+      <button class="channel" data-channel="連絡"><span class="hash">#</span>連絡</button>
+      <div class="profile">
+        <div class="avatar" id="my-avatar">?</div>
+        <div style="min-width:0"><div class="profile-name" id="my-name">Guest</div><div class="profile-status">オンライン</div></div>
+        <button class="logout" id="logout" title="ログアウト">↪</button>
+      </div>
+    </aside>
+    <section class="chat">
+      <header class="chat-head"><span class="hash">#</span><span id="channel-name">general</span><span class="topic">みんなで気軽に話そう</span></header>
+      <div id="messages">
+        <div class="welcome"><h2># <span id="welcome-channel">general</span> へようこそ</h2><p>このチャンネルの最初のメッセージを送ってみよう。</p></div>
+        <div id="message-list"></div>
+      </div>
+      <div class="composer-wrap">
+        <form class="composer" id="message-form">
+          <input id="message-input" maxlength="2000" placeholder="#general にメッセージを送信" autocomplete="off" required>
+          <button class="send" id="send-button" type="submit">送信</button>
+        </form>
+        <div class="notice" id="connection-note">メッセージはメンバー間で共有されます。</div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+      signInWithEmailAndPassword, updateProfile, signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, query, orderBy, limit,
+      onSnapshot, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // Firebase Console > Project settings > Your apps から取得して貼り付ける
+    const firebaseConfig = {
+      apiKey: "AIzaSyCpHI7O58nyDjGD0rTfmj5zr_X93paDYTg",
+      authDomain: "chat-c82ce.firebaseapp.com",
+      projectId: "chat-c82ce",
+      appId: "1:988612557493:web:6dd2fa43ef21dccd8a5cfc"
+    };
+
+    const authView = document.querySelector("#auth");
+    const appView = document.querySelector("#app");
+    const authForm = document.querySelector("#auth-form");
+    const authError = document.querySelector("#auth-error");
+    const toggleAuth = document.querySelector("#toggle-auth");
+    const nameField = document.querySelector("#name-field");
+    const authSubmit = document.querySelector("#auth-submit");
+    const messageInput = document.querySelector("#message-input");
+    const messageList = document.querySelector("#message-list");
+    let isSignup = false, currentUser = null, activeChannel = "general", stopMessages = null;
+    let db, auth;
+
+    const configReady = !Object.values(firebaseConfig).some(v => v.startsWith("YOUR_"));
+    if (!configReady) {
+      authError.textContent = "Firebaseの設定がまだです。README.md の手順で firebaseConfig を設定してください。";
+      authSubmit.disabled = true;
+      authSubmit.style.opacity = ".5";
+    } else {
+      const app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      onAuthStateChanged(auth, user => {
+        currentUser = user;
+        if (user) {
+          authView.classList.add("hidden");
+          appView.classList.remove("hidden");
+          const name = user.displayName || user.email?.split("@")[0] || "User";
+          document.querySelector("#my-name").textContent = name;
+          document.querySelector("#my-avatar").textContent = name.slice(0,1).toUpperCase();
+          subscribeMessages();
+        } else {
+          if (stopMessages) stopMessages();
+          authView.classList.remove("hidden");
+          appView.classList.add("hidden");
+        }
+      });
+    }
+
+    toggleAuth.addEventListener("click", () => {
+      isSignup = !isSignup;
+      nameField.classList.toggle("hidden", !isSignup);
+      authSubmit.textContent = isSignup ? "アカウントを作成" : "ログイン";
+      toggleAuth.textContent = isSignup ? "ログインに戻る" : "アカウントを新規作成する";
+      authError.textContent = "";
+    });
+
+    authForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      if (!auth) return;
+      authError.textContent = "";
+      authSubmit.disabled = true;
+      try {
+        const email = document.querySelector("#email").value.trim();
+        const password = document.querySelector("#password").value;
+        if (isSignup) {
+          const displayName = document.querySelector("#display-name").value.trim() || email.split("@")[0];
+          const credential = await createUserWithEmailAndPassword(auth, email, password);
+          await updateProfile(credential.user, { displayName });
+          authError.textContent = "登録しました。管理者にメンバー追加を依頼してください。";
+        } else {
+          await signInWithEmailAndPassword(auth, email, password);
+        }
+      } catch (err) {
+        authError.textContent = friendlyError(err);
+      } finally { authSubmit.disabled = false; }
+    });
+
+    document.querySelector("#logout").addEventListener("click", () => signOut(auth));
+
+    document.querySelectorAll(".channel").forEach(button => {
+      button.addEventListener("click", () => {
+        activeChannel = button.dataset.channel;
+        document.querySelectorAll(".channel").forEach(b => b.classList.toggle("active", b === button));
+        document.querySelector("#channel-name").textContent = activeChannel;
+        document.querySelector("#welcome-channel").textContent = activeChannel;
+        messageInput.placeholder = `#${activeChannel} にメッセージを送信`;
+        subscribeMessages();
+      });
+    });
+
+    function subscribeMessages() {
+      if (stopMessages) stopMessages();
+      messageList.replaceChildren();
+      const q = query(collection(db, "channels", activeChannel, "messages"), orderBy("createdAt", "asc"), limit(100));
+      stopMessages = onSnapshot(q, snapshot => {
+        messageList.replaceChildren();
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          const item = document.createElement("article");
+          item.className = "message";
+          const avatar = document.createElement("div");
+          avatar.className = "avatar";
+          avatar.textContent = (data.displayName || "?").slice(0,1).toUpperCase();
+          const main = document.createElement("div");
+          main.className = "message-main";
+          const meta = document.createElement("div");
+          meta.className = "message-meta";
+          const author = document.createElement("span");
+          author.className = "message-author";
+          author.textContent = data.displayName || "Unknown";
+          const time = document.createElement("time");
+          time.className = "message-time";
+          time.textContent = data.createdAt?.toDate ? data.createdAt.toDate().toLocaleString("ja-JP", {hour:"2-digit", minute:"2-digit"}) : "送信中";
+          const body = document.createElement("div");
+          body.className = "message-text";
+          body.textContent = data.text || "";
+          meta.append(author, time);
+          main.append(meta, body);
+          item.append(avatar, main);
+          messageList.append(item);
+        });
+        document.querySelector("#messages").scrollTop = document.querySelector("#messages").scrollHeight;
+      }, err => {
+        document.querySelector("#connection-note").textContent = "読み込みエラー: " + friendlyError(err);
+      });
+    }
+
+    document.querySelector("#message-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const text = messageInput.value.trim();
+      if (!text || !currentUser) return;
+      const button = document.querySelector("#send-button");
+      button.disabled = true;
+      try {
+        await addDoc(collection(db, "channels", activeChannel, "messages"), {
+          text,
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || currentUser.email.split("@")[0],
+          createdAt: serverTimestamp()
+        });
+        messageInput.value = "";
+      } catch (err) {
+        document.querySelector("#connection-note").textContent = "送信できませんでした: " + friendlyError(err);
+      } finally { button.disabled = false; messageInput.focus(); }
+    });
+
+    function friendlyError(err) {
+      const messages = {
+        "auth/invalid-credential": "メールアドレスまたはパスワードが違います。",
+        "auth/email-already-in-use": "このメールアドレスは既に登録されています。",
+        "auth/weak-password": "パスワードは6文字以上にしてください。",
+        "auth/invalid-email": "メールアドレスの形式を確認してください。",
+        "permission-denied": "このアカウントはまだメンバー登録されていない可能性があります。管理者に確認してください。"
+      };
+      return messages[err.code] || err.message || "不明なエラー";
+    }
+  </script>
+</body>
+</html>
